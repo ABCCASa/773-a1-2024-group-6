@@ -10,6 +10,7 @@ import imageProcessing.utilities as IPUtils
 import imageProcessing.smoothing as IPSmooth
 import imageProcessing.convolve2D as IPConv2D
 
+
 # this is a helper function that puts together an RGB image for display in matplotlib, given
 # three color channels for r, g, and b, respectively
 def prepareRGBImageFromIndividualArrays(r_pixel_array, g_pixel_array, b_pixel_array, image_width, image_height):
@@ -25,6 +26,7 @@ def prepareRGBImageFromIndividualArrays(r_pixel_array, g_pixel_array, b_pixel_ar
         rgbImage.append(row)
     return rgbImage
 
+
 # takes two images (of the same pixel size!) as input and returns a combined image of double the image width
 def prepareMatchingImage(left_pixel_array, right_pixel_array, image_width, image_height):
     matchingImage = IPUtils.createInitializedGreyscalePixelArray(image_width * 2, image_height)
@@ -39,7 +41,7 @@ def plot_image_with_point(image, points):
     fig, ax = pyplot.subplots()
     ax.imshow(image, cmap='gray')
     for point in points:
-        circle = Circle(point, 1, color='r')
+        circle = Circle(point, 0.5, color='r')
         ax.add_patch(circle)
     pyplot.show()
 
@@ -52,13 +54,25 @@ def scaleImageTo0And255(image):
     return image
 
 
-def convolution_2d(image, kernel):
-    result = np.ones(image.shape)
+def convolution_2d_old(image, kernel):
+    result = np.zeros(image.shape)
     kernel_size = kernel.shape[0]
     image = np.pad(image, kernel_size // 2, mode="edge")
     for i in range(result.shape[0]):
         for j in range(result.shape[1]):
-            result[i, j] = np.sum(kernel*image[i:i+kernel_size, j:j+kernel_size])
+            result[i, j] = np.sum(kernel.flatten()*image[i:i+kernel_size, j:j+kernel_size].flatten())
+    return result
+
+
+# Faster convolution calculations
+def convolution_2d(image, kernel):
+    img_shape = image.shape
+    result = np.zeros(img_shape)
+    kernel_size = kernel.shape[0]
+    image = np.pad(image, kernel_size//2, mode="edge")
+    for r in range(kernel_size):
+        for c in range(kernel_size):
+            result += image[r:img_shape[0] + r, c:img_shape[1] + c]*kernel[r, c]
     return result
 
 
@@ -89,7 +103,7 @@ def gaussian_filter(image, size, sigma=1):
     return convolution_2d(image, kernel)
 
 
-def get_image_corner(image, count, alpha=0.04, threshold=1, window_size=5):
+def get_image_corner(image, count, alpha=0.04, threshold=10000, window_size=5, nms_size=3):
     Ix = sobel_filter(image, 'x')
     Iy = sobel_filter(image, 'y')
 
@@ -109,14 +123,17 @@ def get_image_corner(image, count, alpha=0.04, threshold=1, window_size=5):
 
     # non-maxima suppression
     corners = []
-    center_mask = np.array([[True, True, True],
-                           [True, False, True],
-                           [True, False, True]
-                           ])
-    for row in range(1, C.shape[0]-1):
-        for column in range(1, C.shape[1]-1):
-            if C[row, column] > threshold and np.max(C[row-1:row+2, column-1:column+2][center_mask]) < C[row, column]:
-                corners.append((C[row, column], (column, row)))
+    center_mask = np.ones((nms_size, nms_size), dtype=bool)
+    nms_offset = nms_size//2
+    center_mask[nms_offset, nms_offset] = False  # The center point needs to be the unique maximum
+
+    for row in range(nms_offset, C.shape[0]-nms_offset):
+        for column in range(nms_offset, C.shape[1]-nms_offset):
+            center_val = C[row, column]
+            if center_val > threshold:
+                nms_window = C[row-nms_offset:row+nms_offset+1, column-nms_offset:column+nms_offset+1]
+                if np.max(nms_window[center_mask]) < center_val:
+                    corners.append((C[row, column], (column, row)))
 
     # sort and get top x corners
     corners.sort(key=lambda x: x[0], reverse=True)
@@ -127,10 +144,10 @@ def get_image_corner(image, count, alpha=0.04, threshold=1, window_size=5):
 
 # This is our code skeleton that performs the stitching
 def main():
-    filename_left_image = "./images/panoramaStitching/tongariro_left_01.png"
+    filename_left_image = "./images/cornerTest/checkerboard.png"#"./images/panoramaStitching/tongariro_left_01.png"
     filename_right_image = "./images/panoramaStitching/tongariro_right_01.png"
-    (image_width, image_height, px_array_left_original) = IORW.readRGBImageAndConvertToGreyscalePixelArray(filename_left_image)
-    (image_width, image_height, px_array_right_original) = IORW.readRGBImageAndConvertToGreyscalePixelArray(filename_right_image)
+    _, _, px_array_left_original = IORW.readRGBImageAndConvertToGreyscalePixelArray(filename_left_image)
+    _, _, px_array_right_original = IORW.readRGBImageAndConvertToGreyscalePixelArray(filename_right_image)
 
     # convert image to np.array
     left_image = np.array(px_array_left_original)
@@ -149,7 +166,6 @@ def main():
 
     left_corner = get_image_corner(left_image, count=1000)
     right_corner = get_image_corner(right_image, count=1000)
-    print(len(right_corner))
 
     plot_image_with_point(left_image, left_corner)
     plot_image_with_point(right_image, right_corner)
