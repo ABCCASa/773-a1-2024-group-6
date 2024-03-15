@@ -35,7 +35,24 @@ def prepareMatchingImage(left_pixel_array, right_pixel_array, image_width, image
     return matchingImage
 
 
-def convolution(image, kernel):
+def plot_image_with_point(image, points):
+    fig, ax = pyplot.subplots()
+    ax.imshow(image, cmap='gray')
+    for point in points:
+        circle = Circle(point, 1, color='r')
+        ax.add_patch(circle)
+    pyplot.show()
+
+
+def scaleImageTo0And255(image):
+    min_v = np.min(image)
+    max_v = np.max(image)
+    if min_v != max_v:
+        image = (image - min_v) / (max_v - min_v) * 255
+    return image
+
+
+def convolution_2d(image, kernel):
     result = np.ones(image.shape)
     kernel_size = kernel.shape[0]
     image = np.pad(image, kernel_size // 2, mode="edge")
@@ -54,10 +71,11 @@ def sobel_filter(image, axis):
         kernel = np.array([[-1, -2, -1],
                            [0, 0, 0],
                            [1, 2, 1]])
-    return convolution(image, kernel)/8
+    return convolution_2d(image, kernel)/8
+
 
 def gaussian_kernel(size, sigma):
-    kernel = np.zeros((size,size))
+    kernel = np.zeros((size, size))
     offset = size//2
     for x in range(size):
         for y in range(size):
@@ -68,21 +86,10 @@ def gaussian_kernel(size, sigma):
 
 def gaussian_filter(image, size, sigma=1):
     kernel = gaussian_kernel(size,sigma)
-    return convolution(image, kernel)
+    return convolution_2d(image, kernel)
 
 
-def get_image_corner(filename_image, alpha=0.04):
-    image_width, image_height, px_array_original = IORW.readRGBImageAndConvertToGreyscalePixelArray(filename_image)
-    image = np.array(px_array_original)
-
-    # smooth image
-    image = gaussian_filter(image, 3)
-
-    # make sure greyscale image is stretched to full 8 bit intensity range of 0 to 255
-    min_v = np.min(image)
-    max_v = np.max(image)
-    if min_v != max_v:
-        image = (image - min_v) / (max_v - min_v) * 255
+def get_image_corner(image, count, alpha=0.04, threshold=1, window_size=5):
     Ix = sobel_filter(image, 'x')
     Iy = sobel_filter(image, 'y')
 
@@ -90,9 +97,10 @@ def get_image_corner(filename_image, alpha=0.04):
     Iyy = Iy**2
     Ixy = Ix*Iy
 
-    Ixx = gaussian_filter(Ixx, 5)
-    Iyy = gaussian_filter(Iyy, 5)
-    Ixy = gaussian_filter(Ixy, 5)
+    # smoothing the squared derivatives
+    Ixx = gaussian_filter(Ixx, window_size)
+    Iyy = gaussian_filter(Iyy, window_size)
+    Ixy = gaussian_filter(Ixy, window_size)
 
     # C = det(H) - alpha*(trace(H)^2)
     detH = Ixx*Iyy-Ixy**2
@@ -101,45 +109,55 @@ def get_image_corner(filename_image, alpha=0.04):
 
     # non-maxima suppression
     corners = []
-    centerMask = np.array([[True, True, True],
+    center_mask = np.array([[True, True, True],
                            [True, False, True],
                            [True, False, True]
                            ])
     for row in range(1, C.shape[0]-1):
         for column in range(1, C.shape[1]-1):
-            if C[row, column] > 0 and np.max(C[row-1:row+2, column-1:column+2][centerMask]) < C[row, column]:
-                corners.append((C[row, column], (row, column)))
+            if C[row, column] > threshold and np.max(C[row-1:row+2, column-1:column+2][center_mask]) < C[row, column]:
+                corners.append((C[row, column], (column, row)))
 
-    # sort and get top 1000 corners
+    # sort and get top x corners
     corners.sort(key=lambda x: x[0], reverse=True)
-    top_1000_corners = []
+    top_x_corners = [x[1] for x in corners[:min(len(corners), count)]]
 
-    for i in range(min(len(corners), 1000)):
-        value, point = corners[i]
-        top_1000_corners.append(point)
-
-    # Plot image - The coordinates of a point is (row, column), please convert to (x, y) when using polt.
-    fig, ax = pyplot.subplots()
-    ax.imshow(image, cmap='gray')
-    for point in top_1000_corners:
-        circle = Circle((point[1], point[0]), 1, color='r')
-        ax.add_patch(circle)
-    pyplot.show()
-
-    return top_1000_corners
-
-
+    return top_x_corners
 
 
 # This is our code skeleton that performs the stitching
 def main():
     filename_left_image = "./images/panoramaStitching/tongariro_left_01.png"
     filename_right_image = "./images/panoramaStitching/tongariro_right_01.png"
+    (image_width, image_height, px_array_left_original) = IORW.readRGBImageAndConvertToGreyscalePixelArray(filename_left_image)
+    (image_width, image_height, px_array_right_original) = IORW.readRGBImageAndConvertToGreyscalePixelArray(filename_right_image)
 
-    # get corner of image, the coordinates of a corner is (row, column), remember convert to (x, y) when using polt.
-    left_corner = get_image_corner(filename_left_image)
-    right_corner = get_image_corner(filename_right_image)
+    # convert image to np.array
+    left_image = np.array(px_array_left_original)
+    right_image = np.array(px_array_right_original)
+
+    # Initial blurring of input images
+    start = timer()
+    left_image = gaussian_filter(left_image, 3)
+    right_image = gaussian_filter(right_image, 3)
+    end = timer()
+    print("elapsed time image smoothing: ", end - start)
+
+    # make sure greyscale image is stretched to range of 0 to 255
+    left_image = scaleImageTo0And255(left_image)
+    right_image = scaleImageTo0And255(right_image)
+
+    left_corner = get_image_corner(left_image, count=1000)
+    right_corner = get_image_corner(right_image, count=1000)
+    print(len(right_corner))
+
+    plot_image_with_point(left_image, left_corner)
+    plot_image_with_point(right_image, right_corner)
+IPSmooth.computeGaussianAveraging3x3
 """
+    filename_left_image = "./images/panoramaStitching/tongariro_left_01.png"
+    filename_right_image = "./images/panoramaStitching/tongariro_right_01.png"
+
     (image_width, image_height, px_array_left_original) = IORW.readRGBImageAndConvertToGreyscalePixelArray(filename_left_image)
     (image_width, image_height, px_array_right_original) = IORW.readRGBImageAndConvertToGreyscalePixelArray(filename_right_image)
 
