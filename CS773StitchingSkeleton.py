@@ -70,7 +70,7 @@ def sobel_filter(image, axis):
         kernel = np.array([[-1, -2, -1],
                            [0, 0, 0],
                            [1, 2, 1]])
-    return convolution_2d(image, kernel)
+    return convolution_2d(image, kernel)/8
 
 
 def gaussian_kernel(size, sigma):
@@ -102,11 +102,10 @@ def get_image(file_name, blur=True, scale_color=True):
     if scale_color:
         image = scaleImageTo0And255(image)
 
-    return  image
+    return image
 
 
-
-def image_corner_detection(image, count, window_size=5, alpha=0.04, threshold=10000, nms_size=3, debug=True):
+def image_corner_detection(image, count, window_size=5, alpha=0.04, threshold=100, nms_size=3, debug=True):
     Ix = sobel_filter(image, 'x')
     Iy = sobel_filter(image, 'y')
 
@@ -188,10 +187,10 @@ def main():
     left_image = get_image(filename_left_image)
     right_image = get_image(filename_right_image)
 
-    left_corner = image_corner_detection(left_image, count=1000, alpha=0.04, threshold=10000, nms_size=3, debug=True)
+    left_corner = image_corner_detection(left_image, count=1000, alpha=0.04, threshold=100, nms_size=3, debug=True)
     plot_image_with_point(left_image, left_corner)
 
-    right_corner = image_corner_detection(right_image, count=1000, alpha=0.04, threshold=10000, nms_size=3, debug=True)
+    right_corner = image_corner_detection(right_image, count=1000, alpha=0.04, threshold=100, nms_size=3, debug=True)
     plot_image_with_point(right_image, right_corner)
 
     """
