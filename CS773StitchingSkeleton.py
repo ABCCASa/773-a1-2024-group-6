@@ -1,14 +1,9 @@
 import numpy as np
 from matplotlib import pyplot
 from matplotlib.patches import Circle, ConnectionPatch
-
 from timeit import default_timer as timer
-
 import imageIO.readwrite as IORW
-import imageProcessing.pixelops as IPPixelOps
 import imageProcessing.utilities as IPUtils
-import imageProcessing.smoothing as IPSmooth
-import imageProcessing.convolve2D as IPConv2D
 
 
 # this is a helper function that puts together an RGB image for display in matplotlib, given
@@ -54,22 +49,12 @@ def scaleImageTo0And255(image):
     return image
 
 
-def convolution_2d_old(image, kernel):
-    result = np.zeros(image.shape)
-    kernel_size = kernel.shape[0]
-    image = np.pad(image, kernel_size // 2, mode="edge")
-    for i in range(result.shape[0]):
-        for j in range(result.shape[1]):
-            result[i, j] = np.sum(kernel.flatten()*image[i:i+kernel_size, j:j+kernel_size].flatten())
-    return result
-
-
 # Faster convolution calculations
-def convolution_2d(image, kernel):
+def convolution_2d(image, kernel, pad_mode="edge"):
     img_shape = image.shape
     result = np.zeros(img_shape)
     kernel_size = kernel.shape[0]
-    image = np.pad(image, kernel_size//2, mode="edge")
+    image = np.pad(image, kernel_size//2, mode=pad_mode)
     for r in range(kernel_size):
         for c in range(kernel_size):
             result += image[r:img_shape[0] + r, c:img_shape[1] + c]*kernel[r, c]
@@ -85,7 +70,7 @@ def sobel_filter(image, axis):
         kernel = np.array([[-1, -2, -1],
                            [0, 0, 0],
                            [1, 2, 1]])
-    return convolution_2d(image, kernel)/8
+    return convolution_2d(image, kernel)
 
 
 def gaussian_kernel(size, sigma):
@@ -99,11 +84,29 @@ def gaussian_kernel(size, sigma):
 
 
 def gaussian_filter(image, size, sigma=1):
-    kernel = gaussian_kernel(size,sigma)
+    kernel = gaussian_kernel(size, sigma)
     return convolution_2d(image, kernel)
 
 
-def get_image_corner(image, count, alpha=0.04, threshold=10000, window_size=5, nms_size=3):
+def get_image(file_name, blur=True, scale_color=True):
+    _, _, px_array_original = IORW.readRGBImageAndConvertToGreyscalePixelArray(file_name)
+
+    # convert image to np.array
+    image = np.array(px_array_original)
+
+    # Initial blurring of input images
+    if blur:
+        image = gaussian_filter(image, 3)
+
+    # make sure greyscale image is stretched to range of 0 to 255
+    if scale_color:
+        image = scaleImageTo0And255(image)
+
+    return  image
+
+
+
+def image_corner_detection(image, count, window_size=5, alpha=0.04, threshold=10000, nms_size=3, debug=True):
     Ix = sobel_filter(image, 'x')
     Iy = sobel_filter(image, 'y')
 
@@ -112,15 +115,16 @@ def get_image_corner(image, count, alpha=0.04, threshold=10000, window_size=5, n
     Ixy = Ix*Iy
 
     # smoothing the squared derivatives
-    Ixx = gaussian_filter(Ixx, window_size)
-    Iyy = gaussian_filter(Iyy, window_size)
-    Ixy = gaussian_filter(Ixy, window_size)
+    smooth_Ixx = gaussian_filter(Ixx, window_size)
+    smooth_Iyy = gaussian_filter(Iyy, window_size)
+    smooth_Ixy = gaussian_filter(Ixy, window_size)
 
     # C = det(H) - alpha*(trace(H)^2)
-    detH = Ixx*Iyy-Ixy**2
-    traceH = Ixx+Iyy
+    detH = smooth_Ixx*smooth_Iyy-smooth_Ixy**2
+    traceH = smooth_Ixx+smooth_Iyy
     C = detH - alpha * (traceH ** 2)
-
+    C_threshold = np.copy(C)
+    C_threshold[C_threshold < threshold] = 0
     # non-maxima suppression
     corners = []
     center_mask = np.ones((nms_size, nms_size), dtype=bool)
@@ -130,7 +134,7 @@ def get_image_corner(image, count, alpha=0.04, threshold=10000, window_size=5, n
     for row in range(nms_offset, C.shape[0]-nms_offset):
         for column in range(nms_offset, C.shape[1]-nms_offset):
             center_val = C[row, column]
-            if center_val > threshold:
+            if center_val >= threshold:
                 nms_window = C[row-nms_offset:row+nms_offset+1, column-nms_offset:column+nms_offset+1]
                 if np.max(nms_window[center_mask]) < center_val:
                     corners.append((C[row, column], (column, row)))
@@ -139,38 +143,58 @@ def get_image_corner(image, count, alpha=0.04, threshold=10000, window_size=5, n
     corners.sort(key=lambda x: x[0], reverse=True)
     top_x_corners = [x[1] for x in corners[:min(len(corners), count)]]
 
+    if debug:
+        fig, axs = pyplot.subplots(3, 4)
+        for i in range(3):
+            for j in range(4):
+                axs[i][j].axis('off')
+        axs[0][0].set_title('Ix')
+        axs[0][0].imshow(Ix, cmap='gray')
+        axs[0][1].set_title('Iy')
+        axs[0][1].imshow(Iy, cmap='gray')
+        axs[0][2].set_title('Ixx')
+        axs[0][2].imshow(Ixx, cmap='gray')
+        axs[0][3].set_title('Iyy')
+        axs[0][3].imshow(Iyy, cmap='gray')
+        axs[1][0].set_title('Ixy')
+        axs[1][0].imshow(Ixy, cmap='gray')
+        axs[1][1].set_title('g_Ixx')
+        axs[1][1].imshow(smooth_Ixx, cmap='gray')
+        axs[1][2].set_title('g_Iyy')
+        axs[1][2].imshow(smooth_Iyy, cmap='gray')
+        axs[1][3].set_title('g_Ixy')
+        axs[1][3].imshow(smooth_Ixy, cmap='gray')
+        axs[2][0].set_title('C')
+        axs[2][0].imshow(C, cmap='gray')
+        axs[2][1].set_title('C_threshold')
+        axs[2][1].imshow(C_threshold, cmap='gray')
+        axs[2][2].set_title('C_polt')
+        axs[2][2].imshow(C_threshold, cmap='gray')
+        axs[2][3].set_title('image_polt')
+        axs[2][3].imshow(image, cmap='gray')
+        for point in top_x_corners:
+            axs[2][2].add_patch(Circle(point, 0.5, color='r'))
+            axs[2][3].add_patch(Circle(point, 0.5, color='r'))
+        pyplot.show()
+
     return top_x_corners
 
 
 # This is our code skeleton that performs the stitching
 def main():
-    filename_left_image = "./images/cornerTest/checkerboard.png"#"./images/panoramaStitching/tongariro_left_01.png"
+    filename_left_image = "./images/panoramaStitching/tongariro_left_01.png"
     filename_right_image = "./images/panoramaStitching/tongariro_right_01.png"
-    _, _, px_array_left_original = IORW.readRGBImageAndConvertToGreyscalePixelArray(filename_left_image)
-    _, _, px_array_right_original = IORW.readRGBImageAndConvertToGreyscalePixelArray(filename_right_image)
 
-    # convert image to np.array
-    left_image = np.array(px_array_left_original)
-    right_image = np.array(px_array_right_original)
+    left_image = get_image(filename_left_image)
+    right_image = get_image(filename_right_image)
 
-    # Initial blurring of input images
-    start = timer()
-    left_image = gaussian_filter(left_image, 3)
-    right_image = gaussian_filter(right_image, 3)
-    end = timer()
-    print("elapsed time image smoothing: ", end - start)
-
-    # make sure greyscale image is stretched to range of 0 to 255
-    left_image = scaleImageTo0And255(left_image)
-    right_image = scaleImageTo0And255(right_image)
-
-    left_corner = get_image_corner(left_image, count=1000)
-    right_corner = get_image_corner(right_image, count=1000)
-
+    left_corner = image_corner_detection(left_image, count=1000, alpha=0.04, threshold=10000, nms_size=3, debug=True)
     plot_image_with_point(left_image, left_corner)
+
+    right_corner = image_corner_detection(right_image, count=1000, alpha=0.04, threshold=10000, nms_size=3, debug=True)
     plot_image_with_point(right_image, right_corner)
-IPSmooth.computeGaussianAveraging3x3
-"""
+
+    """
     filename_left_image = "./images/panoramaStitching/tongariro_left_01.png"
     filename_right_image = "./images/panoramaStitching/tongariro_right_01.png"
 
@@ -218,7 +242,7 @@ IPSmooth.computeGaussianAveraging3x3
     ax.add_artist(connection)
 
     pyplot.show()
-"""
+    """
 
 
 if __name__ == "__main__":
