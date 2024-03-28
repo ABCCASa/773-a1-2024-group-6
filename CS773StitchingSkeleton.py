@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 from matplotlib import pyplot
 from matplotlib.patches import Circle, ConnectionPatch
@@ -105,7 +107,7 @@ def get_image(file_name, blur=True, scale_color=True):
     return image
 
 
-def image_corner_detection(image, count, window_size=5, alpha=0.04, threshold=100, nms_size=3, debug=True):
+def image_corner_detection(image, count, window_size=5, alpha=0.04, threshold=100, nms_size=3, debug=False):
     Ix = sobel_filter(image, 'x')
     Iy = sobel_filter(image, 'y')
 
@@ -188,11 +190,10 @@ def main():
     right_image = get_image(filename_right_image)
 
 
-
-    left_corner = image_corner_detection(left_image, count=1000, alpha=0.04, threshold=100, nms_size=3, debug=True)
+    left_corner = image_corner_detection(left_image, count=1000,  alpha=0.04, threshold=100, nms_size=3, debug=True)
     plot_image_with_point(left_image, left_corner)
 
-    right_corner = image_corner_detection(right_image, count=1000, alpha=0.04, threshold=100, nms_size=3, debug=True)
+    right_corner = image_corner_detection(right_image, count=1000,alpha=0.04, threshold=100, nms_size=3, debug=True)
     plot_image_with_point(right_image, right_corner)
 
     left_corner_fast_extension = ext.fast_corner_detection(left_image)
@@ -202,6 +203,13 @@ def main():
     plot_image_with_point(right_image, right_corner_fast_extension)
 
     """
+    
+    left_corner = image_corner_detection(left_image, count=1000, alpha=0.04, threshold=100, nms_size=3, debug=True)
+    plot_image_with_point(left_image, left_corner)
+
+    right_corner = image_corner_detection(right_image, count=1000, alpha=0.04, threshold=100, nms_size=3, debug=True)
+    plot_image_with_point(right_image, right_corner)
+    
     filename_left_image = "./images/panoramaStitching/tongariro_left_01.png"
     filename_right_image = "./images/panoramaStitching/tongariro_right_01.png"
 
