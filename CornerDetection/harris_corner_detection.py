@@ -4,8 +4,7 @@ import utils
 from matplotlib.patches import Circle
 
 
-
-def harrisCornDetection(image, count, window_size=5, alpha=0.04, threshold=100, nms_size=3, debug=False):
+def harrisCornerDetection(image, count, window_size=5, alpha=0.04, threshold=100, nms_size=3, debug=False):
     Ix = utils.sobel_filter(image, 'x')
     Iy = utils.sobel_filter(image, 'y')
 
