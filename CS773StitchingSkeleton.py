@@ -3,7 +3,7 @@ from matplotlib.patches import Circle, ConnectionPatch
 from timeit import default_timer as timer
 import imageProcessing.utilities as IPUtils
 from CornerDetection.fast_corner_detection import fastCornerDetection
-from CornerDetection.harris_corner_detection import harrisCornDetection
+from CornerDetection.harris_corner_detection import harrisCornerDetection
 import utils
 
 # this is a helper function that puts together an RGB image for display in matplotlib, given
@@ -32,8 +32,9 @@ def prepareMatchingImage(left_pixel_array, right_pixel_array, image_width, image
     return matchingImage
 
 
-def plot_image_with_point(image, points):
+def plot_image_with_point(image, points, title=""):
     fig, ax = pyplot.subplots()
+    ax.set_title(title)
     ax.imshow(image, cmap='gray')
     for point in points:
         circle = Circle(point, 0.5, color='r')
@@ -48,20 +49,19 @@ def main():
     left_image = utils.get_gray_image(filename_left_image)
     right_image = utils.get_gray_image(filename_right_image)
 
-    left_corner = harrisCornDetection(left_image, count=1000,  alpha=0.04, threshold=100, nms_size=3, debug=True)
-    plot_image_with_point(left_image, left_corner)
+    left_corner = harrisCornerDetection(left_image, count=1000,  alpha=0.04, threshold=100, nms_size=3, debug=False)
+    plot_image_with_point(left_image, left_corner, "Harris Corner Detection: Left Image")
 
-    right_corner = harrisCornDetection(right_image, count=1000, alpha=0.04, threshold=100, nms_size=3, debug=False)
-    plot_image_with_point(right_image, right_corner)
+    right_corner = harrisCornerDetection(right_image, count=1000, alpha=0.04, threshold=100, nms_size=3, debug=False)
+    plot_image_with_point(right_image, right_corner, "Harris Corner Detection: Right Image")
 
     left_corner_fast_extension = fastCornerDetection(left_image)
-    plot_image_with_point(left_image, left_corner_fast_extension)
+    plot_image_with_point(left_image, left_corner_fast_extension, "FAST Corner Detection: Left Image")
 
     right_corner_fast_extension = fastCornerDetection(right_image)
-    plot_image_with_point(right_image, right_corner_fast_extension)
+    plot_image_with_point(right_image, right_corner_fast_extension, "FAST Corner Detection: Right Image")
 
     """
-    
     left_corner = image_corner_detection(left_image, count=1000, alpha=0.04, threshold=100, nms_size=3, debug=True)
     plot_image_with_point(left_image, left_corner)
 
