@@ -55,11 +55,44 @@ def main():
     right_corner = harrisCornerDetection(right_image, count=1000, alpha=0.04, threshold=100, nms_size=3, debug=False)
     plot_image_with_point(right_image, right_corner, "Harris Corner Detection: Right Image")
 
+    '''Extention 1: FAST Corner Detection'''
     left_corner_fast_extension = fastCornerDetection(left_image)
     plot_image_with_point(left_image, left_corner_fast_extension, "FAST Corner Detection: Left Image")
 
     right_corner_fast_extension = fastCornerDetection(right_image)
     plot_image_with_point(right_image, right_corner_fast_extension, "FAST Corner Detection: Right Image")
+
+    '''Extention 2: 3 Images'''
+
+    filename_three_image_left_image = "./images/panoramaStitching/extension_3image_left.png"
+    filename_three_image_mid_image = "./images/panoramaStitching/extension_3image_mid.png"
+    filename_three_image_right_image = "./images/panoramaStitching/extension_3image_right.png"
+
+    three_image_left_image = utils.get_gray_image(filename_three_image_left_image)
+    three_image_mid_image = utils.get_gray_image(filename_three_image_mid_image)
+    three_image_right_image = utils.get_gray_image(filename_three_image_right_image)
+
+    three_image_left_corner = harrisCornerDetection(three_image_left_image,
+                                                     count=1000,
+                                                     alpha=0.04,
+                                                     threshold=100,
+                                                     nms_size=3,
+                                                     debug=False)
+    plot_image_with_point(three_image_left_image, three_image_left_corner, "Corner Detection: 3 image Left Image")
+    three_image_mid_corner = harrisCornerDetection(three_image_mid_image,
+                                                    count=1000,
+                                                    alpha=0.04,
+                                                    threshold=100,
+                                                    nms_size=3,
+                                                    debug=False)
+    plot_image_with_point(three_image_mid_image, three_image_mid_corner, "Corner Detection: 3 image Mid Image")
+    three_image_right_corner = harrisCornerDetection(three_image_right_image,
+                                                      count=1000,
+                                                      alpha=0.04,
+                                                      threshold=100,
+                                                      nms_size=3,
+                                                      debug=False)
+    plot_image_with_point(three_image_right_image, three_image_right_corner, "Corner Detection: 3 image  Right Image")
 
     """
     left_corner = image_corner_detection(left_image, count=1000, alpha=0.04, threshold=100, nms_size=3, debug=True)
