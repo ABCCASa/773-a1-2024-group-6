@@ -9,6 +9,24 @@ def scaleImageTo0And255(image):
         image = (image - min_v) / (max_v - min_v) * 255
     return image
 
+
+def get_rgb_image(file_name):
+    image_width, image_height, r_pixel_array, g_pixel_array, b_pixel_array = IORW.readRGBImageToSeparatePixelArrays(file_name)
+
+    rgbImage = []
+    for y in range(image_height):
+        row = []
+        for x in range(image_width):
+            triple = list()
+            triple.append(r_pixel_array[y][x])
+            triple.append(g_pixel_array[y][x])
+            triple.append(b_pixel_array[y][x])
+            row.append(triple)
+        rgbImage.append(row)
+
+    return np.array(rgbImage)
+
+
 def get_gray_image(file_name, blur=True, scale_color=True):
     _, _, px_array_original = IORW.readRGBImageAndConvertToGreyscalePixelArray(file_name)
 
