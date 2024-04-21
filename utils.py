@@ -1,6 +1,5 @@
-
 import numpy as np
-import imageIO.readwrite as IORW
+import cv2
 
 def scaleImageTo0And255(image):
     min_v = np.min(image)
@@ -11,27 +10,14 @@ def scaleImageTo0And255(image):
 
 
 def get_rgb_image(file_name):
-    image_width, image_height, r_pixel_array, g_pixel_array, b_pixel_array = IORW.readRGBImageToSeparatePixelArrays(file_name)
-
-    rgbImage = []
-    for y in range(image_height):
-        row = []
-        for x in range(image_width):
-            triple = list()
-            triple.append(r_pixel_array[y][x])
-            triple.append(g_pixel_array[y][x])
-            triple.append(b_pixel_array[y][x])
-            row.append(triple)
-        rgbImage.append(row)
-
-    return np.array(rgbImage)
+    image = cv2.imread(file_name)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    return image
 
 
 def get_gray_image(file_name, blur=True, scale_color=True):
-    _, _, px_array_original = IORW.readRGBImageAndConvertToGreyscalePixelArray(file_name)
-
-    # convert image to np.array
-    image = np.array(px_array_original)
+    image = cv2.imread(file_name)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Initial blurring of input images
     if blur:
@@ -43,6 +29,7 @@ def get_gray_image(file_name, blur=True, scale_color=True):
 
     return image
 
+
 # Faster convolution calculations
 def convolution_2d(image, kernel, pad_mode="edge"):
     img_shape = image.shape
@@ -53,6 +40,8 @@ def convolution_2d(image, kernel, pad_mode="edge"):
         for c in range(kernel_size):
             result += image[r:img_shape[0] + r, c:img_shape[1] + c]*kernel[r, c]
     return result
+
+
 def sobel_filter(image, axis):
     if axis == 'x':
         kernel = np.array([[-1, 0, 1],
