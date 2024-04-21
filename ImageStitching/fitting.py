@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def projective_transformation_fitting(point_pairs, iter_count=1000):
+def projective_transformation_fitting(point_pairs, distance_threshold=1, iter_count=1000):
     pair_count = len(point_pairs)
     # convert (x, y) to (row, column, 1)
     preprocess_points = []
@@ -23,7 +23,7 @@ def projective_transformation_fitting(point_pairs, iter_count=1000):
         samples = np_points[sample_idx]
         if valid_quadrangle(samples[0][0], samples[1][0], samples[2][0], samples[3][0], 8):
             tempH = calculate_transformation(samples)
-            temp_score = calculate_score(np_points, tempH, 1)
+            temp_score = calculate_score(np_points, tempH, distance_threshold)
             if H is None or temp_score > score:
                 H = tempH
                 score = temp_score
@@ -76,7 +76,3 @@ def calculate_score(point_pairs, H, max_distance):
     transformed_point = transformation_points(left_points, H)
     distances = np.sqrt(np.sum((transformed_point-right_points)**2, axis=1))
     return np.where(distances <= max_distance)[0].shape[0]
-
-
-
-
