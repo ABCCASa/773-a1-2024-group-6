@@ -1,7 +1,6 @@
 import numpy as np
 from matplotlib import pyplot
 from matplotlib.patches import Circle, ConnectionPatch
-from timeit import default_timer as timer
 import imageProcessing.utilities as IPUtils
 from CornerDetection.fast_corner_detection import fastCornerDetection
 from CornerDetection.harris_corner_detection import harrisCornerDetection
@@ -27,14 +26,20 @@ def PoltMatchingImage(left_image, right_image, matched_points, title=""):
     pyplot.show()
 
 
-def plot_image_with_point(image, points, title=""):
-    fig, ax = pyplot.subplots()
-    ax.set_title(title)
+def plot_images_with_points(image_1, points_1, image_2, points_2, title_1="", title_2=""):
+    fig, axs = pyplot.subplots(1, 2)
+    plot_image_with_point(axs[0], image_1, points_1, title=title_1)
+    plot_image_with_point(axs[1], image_2, points_2, title=title_2)
+    pyplot.show()
+
+
+def plot_image_with_point(ax, image, points, title):
     ax.imshow(image, cmap='gray')
+    ax.set_title(title)
     for point in points:
         circle = Circle(point, 0.5, color='r')
         ax.add_patch(circle)
-    pyplot.show()
+
 
 
 def main():
@@ -46,10 +51,11 @@ def main():
 
     """ ***********************************  Corner Detection  *************************************************** """
     left_corner = harrisCornerDetection(left_image, count=1000,  alpha=0.04, threshold=100, nms_size=3, debug=False)
-    # plot_image_with_point(left_image, left_corner, "Harris Corner Detection: Left Image")
-
+    print(f"get {len(left_corner)} corners from left image")
     right_corner = harrisCornerDetection(right_image, count=900, alpha=0.04, threshold=100, nms_size=3, debug=False)
-    # plot_image_with_point(right_image, right_corner, "Harris Corner Detection: Right Image")
+    print(f"get {len(right_corner)} corners from right image")
+    plot_images_with_points(left_image, left_corner, right_image,
+                            right_corner, title_1="Left Image Corners", title_2="Right Image Corners")
 
     """
     left_corner_fast_extension = fastCornerDetection(left_image)
@@ -61,8 +67,8 @@ def main():
 
     """ ***********************************  Feature Match  *************************************************** """
     matched_Point = NCCMatch(left_image, left_corner, right_image, right_corner, window_size=15, ratio_threshold=0.90)
-    PoltMatchingImage(left_image, right_image, matched_Point)
-
+    print(f"get {len(matched_Point)} totally matched points")
+    PoltMatchingImage(left_image, right_image, matched_Point, "Match Feature of two image")
 
 
 
