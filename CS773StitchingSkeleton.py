@@ -51,9 +51,9 @@ def main():
 
     """ ***********************************  Corner Detection  *************************************************** """
     left_corner = harrisCornerDetection(left_image, count=1000,  alpha=0.04, threshold=100, nms_size=3, debug=False)
-    print(f"get {len(left_corner)} corners from left image")
-    right_corner = harrisCornerDetection(right_image, count=900, alpha=0.04, threshold=100, nms_size=3, debug=False)
-    print(f"get {len(right_corner)} corners from right image")
+    print(f"Get {len(left_corner)} corners from left image")
+    right_corner = harrisCornerDetection(right_image, count=1000, alpha=0.04, threshold=100, nms_size=3, debug=False)
+    print(f"Get {len(right_corner)} corners from right image")
     plot_images_with_points(left_image, left_corner, right_image,
                             right_corner, title_1="Left Image Corners", title_2="Right Image Corners")
 
@@ -66,10 +66,10 @@ def main():
     """
 
     """ ***********************************  Feature Match  *************************************************** """
-    matched_Point = NCCMatch(left_image, left_corner, right_image, right_corner, window_size=15, ratio_threshold=0.90)
+    matched_Point = NCCMatch(left_image, left_corner, right_image, right_corner,
+                             window_size=15, ratio_threshold=0.9, two_dir_match=False)
     print(f"get {len(matched_Point)} totally matched points")
     PoltMatchingImage(left_image, right_image, matched_Point, "Match Feature of two image")
-
 
 
 if __name__ == "__main__":
