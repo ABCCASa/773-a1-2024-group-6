@@ -3,7 +3,6 @@ import numpy as np
 
 def projective_transformation_fitting(point_pairs, iter_count=1000):
     pair_count = len(point_pairs)
-
     # convert (x, y) to (row, column, 1)
     preprocess_points = []
     for p1, p2 in point_pairs:
@@ -12,7 +11,7 @@ def projective_transformation_fitting(point_pairs, iter_count=1000):
         preprocess_points.append([p1, p2])
 
     # to np
-    np_points = np.array(preprocess_points, dtype=float)
+    np_points = np.array(preprocess_points)
 
     # result ready to return
     score = None
@@ -28,8 +27,6 @@ def projective_transformation_fitting(point_pairs, iter_count=1000):
             if H is None or temp_score > score:
                 H = tempH
                 score = temp_score
-
-
     return H, score
 
 
@@ -39,13 +36,13 @@ def valid_triangle(p1, p2, p3, min_area):
 
 
 def valid_quadrangle(p1, p2, p3, p4, min_area):
-    if not valid_triangle(p1,p2,p3,min_area):
+    if not valid_triangle(p1, p2, p3, min_area):
         return False
-    if not valid_triangle(p1,p2,p4,min_area):
+    if not valid_triangle(p1, p2, p4, min_area):
         return False
-    if not valid_triangle(p1,p3,p4,min_area):
+    if not valid_triangle(p1, p3, p4, min_area):
         return False
-    if not valid_triangle(p2,p3,p4,min_area):
+    if not valid_triangle(p2, p3, p4, min_area):
         return False
     return True
 
@@ -55,7 +52,7 @@ def calculate_transformation(point_pairs):
     for p1, p2 in point_pairs:
         A.append([0, 0, 0, p1[0], p1[1], 1, -p2[1]*p1[0], -p2[1]*p1[1], -p2[1]])
         A.append([p1[0], p1[1], 1, 0, 0, 0, -p2[0]*p1[0], -p2[0]*p1[1], -p2[0]])
-    A = np.array(A, dtype=float)
+    A = np.array(A)
     U, D, Vt = np.linalg.svd(A)
     H = Vt[-1].reshape(3, 3)
     return H
