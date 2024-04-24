@@ -14,35 +14,40 @@ def projective_transformation_fitting(point_pairs, distance_threshold=1, iter_co
     np_points = np.array(preprocess_points)
 
     # result ready to return
-    score = None
+    inliers_count = 0
     H = None
 
     while iter_count > 0 or H is None:
         iter_count -= 1
         sample_idx = np.random.choice(pair_count, size=4, replace=False)
         samples = np_points[sample_idx]
-        if valid_quadrangle(samples[0][0], samples[1][0], samples[2][0], samples[3][0], 8):
+        if valid_quadrangle(samples[0][0], samples[1][0], samples[2][0], samples[3][0]):
             tempH = calculate_transformation(samples)
-            temp_score = calculate_score(np_points, tempH, distance_threshold)
-            if H is None or temp_score > score:
+            temp_inliers_count = get_inliers(np_points, tempH, distance_threshold).shape[0]
+            if H is None or temp_inliers_count > inliers_count:
                 H = tempH
-                score = temp_score
-    return H, score
+                inliers_count = temp_inliers_count
+
+    # get inliers and use them to calculate the final transformation
+    inliers = get_inliers(np_points, H, distance_threshold)
+    H = calculate_transformation(inliers)
+
+    return H, inliers_count
 
 
-def valid_triangle(p1, p2, p3, min_area):
+def valid_triangle(p1, p2, p3):
     areaOfTriangle = 0.5 * (p1[0] * (p2[1]-p3[1]) + p2[0] * (p3[1]-p1[1]) + p3[0]*(p1[1]-p2[1]))
-    return abs(areaOfTriangle) >= min_area
+    return abs(areaOfTriangle) >= 1e-5
 
 
-def valid_quadrangle(p1, p2, p3, p4, min_area):
-    if not valid_triangle(p1, p2, p3, min_area):
+def valid_quadrangle(p1, p2, p3, p4):
+    if not valid_triangle(p1, p2, p3):
         return False
-    if not valid_triangle(p1, p2, p4, min_area):
+    if not valid_triangle(p1, p2, p4):
         return False
-    if not valid_triangle(p1, p3, p4, min_area):
+    if not valid_triangle(p1, p3, p4):
         return False
-    if not valid_triangle(p2, p3, p4, min_area):
+    if not valid_triangle(p2, p3, p4):
         return False
     return True
 
@@ -65,14 +70,15 @@ def transformation_point(point, H):
 
 
 def transformation_points(points, H):
-    result = np.dot(points, H.T)
+    result = np.einsum('ij,nj->ni', H, points)
     result = result[:, :2] / result[:, 2, None]
     return result
 
 
-def calculate_score(point_pairs, H, max_distance):
+def get_inliers(point_pairs, H, max_distance):
     left_points = point_pairs[:, 0]
     right_points = point_pairs[:, 1, :2]
     transformed_point = transformation_points(left_points, H)
-    distances = np.sqrt(np.sum((transformed_point-right_points)**2, axis=1))
-    return np.where(distances <= max_distance)[0].shape[0]
+    distances = np.sum((transformed_point-right_points)**2, axis=1)
+    return point_pairs[distances <= max_distance**2]
+
