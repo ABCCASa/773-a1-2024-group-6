@@ -8,6 +8,7 @@ from FeatureMatch.ncc_match import NCCMatch
 import utils
 from ImageStitching.fitting import projective_transformation_fitting
 from ImageStitching.warping import warping
+import time
 
 
 # takes two images (of the same pixel size!) as input and returns a combined image of double the image width
@@ -50,10 +51,12 @@ def main():
     right_image = utils.get_gray_image(filename_right_image)
 
     """ ***********************************  Corner Detection  *************************************************** """
+    current_time = time.time()
     left_corner = harrisCornerDetection(left_image, count=1000,  alpha=0.04, threshold=100, nms_size=3, debug=False)
     print(f"Get {len(left_corner)} corners from left image")
     right_corner = harrisCornerDetection(right_image, count=1000, alpha=0.04, threshold=100, nms_size=3, debug=False)
     print(f"Get {len(right_corner)} corners from right image")
+    print(f"Corner detection complete, use time {round(time.time()-current_time,2)}s\n")
     plot_images_with_points(left_image, left_corner, right_image,
                             right_corner, title_1="Left Image Corners", title_2="Right Image Corners")
 
@@ -66,10 +69,14 @@ def main():
     """
 
     """ ***********************************  Feature Match  *************************************************** """
+    current_time = time.time()
     matched_Point = NCCMatch(left_image, left_corner, right_image, right_corner,
                              window_size=15, ratio_threshold=0.9, two_dir_match=False)
-    print(f"get {len(matched_Point)} totally matched points")
+    print(f"get {len(matched_Point)} matched points")
+    print(f"Feature match complete, use time {round(time.time() - current_time, 2)}s\n")
     PoltMatchingImage(left_image, right_image, matched_Point, "Match Feature of two image")
+
+   
 
 
 if __name__ == "__main__":
