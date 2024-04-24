@@ -7,7 +7,6 @@ def NCC(img1, img2):
     img2_sub_mean = img2 - np.mean(img2)
     return np.sum(img1_sub_mean * img2_sub_mean) / math.sqrt(np.sum(img1_sub_mean**2)*np.sum(img2_sub_mean**2))
 
-
 # get window from image
 def get_feature(img, point, window_size):
     row = point[1]
@@ -33,7 +32,6 @@ def point_clamp(img, points, window_size):
     return [point for point in points if min_value <= point[0] <= max_x and min_value < point[1] <= max_y]
 
 
-# use matrix to parallel calculate the NCC of all window
 def NCCMatrix(features1, features2):
     shape1 = features1.shape
     count1 = shape1[0]
@@ -48,19 +46,18 @@ def NCCMatrix(features1, features2):
     features_sub_mean_2 = feature_matrix2 - features2_mean[:, :, None, None]
 
     top = np.sum(features_sub_mean_1 * features_sub_mean_2, axis=(2, 3))
-    bottom = np.sqrt(np.sum(features_sub_mean_1**2, axis=(2, 3)) * np.sum(features_sub_mean_2**2, axis=(2, 3)))
-    return top / bottom
+    bottom = np.sqrt(np.sum(features_sub_mean_1**2, axis=(2, 3))*np.sum(features_sub_mean_2**2, axis=(2, 3)))
+    return top/bottom
 
 
-def NCCMatch(img1, points1, img2, points2, window_size=15, ratio_threshold=0.9, two_dir_match=False):
+def NCCMatch(img1, points1, img2, points2, window_size=15):
     points1 = point_clamp(img1, points1, window_size)
     points2 = point_clamp(img2, points2, window_size)
 
     features1 = get_features(img1, points1, window_size)
     features2 = get_features(img2, points2, window_size)
     score_matrix = NCCMatrix(features1, features2)
-
-    score_matrix = (score_matrix+1) / 2
+    score_matrix = (score_matrix+1)/2
     matched_points = []
 
     for i in range(score_matrix.shape[0]):
@@ -68,15 +65,8 @@ def NCCMatch(img1, points1, img2, points2, window_size=15, ratio_threshold=0.9, 
         sorted_arg = np.argsort(scores)
         j = sorted_arg[-1]
         ratio = scores[sorted_arg[-2]] / scores[j]
-        if ratio < ratio_threshold:
+        if ratio < 0.9:
             matched_points.append((points1[i], points2[j]))
-
-    if two_dir_match:
-        for i in range(score_matrix.shape[1]):
-            scores = score_matrix[:, i]
-            sorted_arg = np.argsort(scores)
-            j = sorted_arg[-1]
-            ratio = scores[sorted_arg[-2]] / scores[j]
-            if ratio < ratio_threshold:
-                matched_points.append((points1[j], points2[i]))
     return matched_points
+
+
