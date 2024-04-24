@@ -1,62 +1,97 @@
 import math
 import numpy as np
 from ImageStitching.fitting import transformation_points, transformation_point
+
 from matplotlib import pyplot
 import colorsys
+import cv2
+import utils
 
 
-def warping(left_image, right_image, H):
-    image_size, offset = check_image_size(left_image.shape, right_image.shape, H)
-    result_image = np.zeros((image_size[0], image_size[1], 3),dtype=int)
 
-    result_image[offset[0]:left_image.shape[0]+offset[0], offset[1]:left_image.shape[1]+offset[1]] = left_image
+def warping(base_image, match_images):
+    image_size, offset = check_image_size(base_image, match_images)
+    offset_x, offset_y = offset
 
-    for r in range(result_image.shape[0]):
-        for c in range(result_image.shape[1]):
-            point = transformation_point(np.array([r-offset[0], c-offset[1], 1]), H)
-            r2, c2 = point[0], point[1]
-            if 0 <= r2 < right_image.shape[0]-1 and 0 <= c2 < right_image.shape[1]-1:
-                colors = right_image[int(r2): int(r2)+2, int(c2): int(c2)+2]
-                result_image[r, c] = color_mix(colors, r2 % 1, c2 % 1)
+    result_image = np.zeros((image_size[0], image_size[1], 3), dtype=np.uint8)
+    result_image[offset_x:base_image.shape[0] + offset_x, offset_y:base_image.shape[1] + offset_y] = base_image
 
-    pyplot.imshow(result_image, cmap='gray')
-    pyplot.show()
+    points_idx = []
+    for r in range(image_size[0]):
+        for c in range(image_size[1]):
+            points_idx.append([r, c, 1])
+
+    transfer_points_all_images = []
+    np_points = np.array(points_idx)
+    np_points[:, 0] -= offset_x
+    np_points[:, 1] -= offset_y
+    for image, H in match_images:
+        transfer_points = transformation_points(np_points, H)
+        transfer_points_all_images.append(transfer_points)
+
+    np_index = np.array(points_idx)
+    for i in range(len(match_images)):
+        transfer_points = transfer_points_all_images[i]
+        overlap_image = match_images[i][0]
+        vaild_area = np.where((0<=transfer_points[:,0])
+                                &(transfer_points[:,0]< overlap_image.shape[0] - 1)
+                                &(0 <=transfer_points[:,1])
+                                &(transfer_points[:,1]< overlap_image.shape[1] - 1))
+        colors = colors_mix(overlap_image, transfer_points[vaild_area])
+        valid_np_index = np_index[vaild_area]
+        result_image[valid_np_index[:,0], valid_np_index[:,1]] = colors
+
+    result_image = result_image.astype(np.uint8)
+
+    return result_image
 
 
-def check_image_size(shape0, shape1, H):
-    H = np.linalg.inv(H)
-    corners_right = np.array([
-        [0, 0, 1],
-        [shape1[0], 0, 1],
-        [0, shape1[1], 1],
-        [shape1[0], shape1[1], 1]
-    ], dtype=float)
 
-    corners_right = transformation_points(corners_right, H)
-    corners_left = np.array([
+
+def check_image_size(base_image, match_images):
+    base_shape = base_image.shape
+    images_corners = []
+    corners_base = np.array([
         [0, 0],
-        [shape0[0], 0],
-        [0, shape0[1]],
-        [shape0[0], shape0[1]]
-    ], dtype=float)
+        [base_shape[0], 0],
+        [0, base_shape[1]],
+        [base_shape[0], base_shape[1]]
+    ])
+    images_corners.append(corners_base)
 
-    corner = np.concatenate((corners_left, corners_right), axis=0)
+    for image, H in match_images:
+        image_shape = image.shape
+        H = np.linalg.inv(H)
+        corners = np.array([
+            [0, 0, 1],
+            [image_shape[0], 0, 1],
+            [0, image_shape[1], 1],
+            [image_shape[0], image_shape[1], 1]
+        ])
+        corners = transformation_points(corners, H)
+        images_corners.append(corners)
 
-    min_x = math.floor(np.min(corner[:, 0]))
-    min_y = math.floor(np.min(corner[:, 1]))
-    max_x = math.ceil(np.max(corner[:, 0]))
-    max_y = math.ceil(np.max(corner[:, 1]))
+    corners = np.concatenate(images_corners, axis=0)
+    min_x = math.floor(np.min(corners[:, 0]))
+    min_y = math.floor(np.min(corners[:, 1]))
+    max_x = math.ceil(np.max(corners[:, 0]))
+    max_y = math.ceil(np.max(corners[:, 1]))
     offset = (-min_x, -min_y)
     image_size = (max_x-min_x, max_y-min_y)
     return image_size, offset
 
 
-def color_mix(rgb_colors, a, b):
-    hsv_color = (1-a) * (1-b) * rgb_to_hsv(rgb_colors[0, 0])\
-                + a * (1-b) * rgb_to_hsv(rgb_colors[0, 1])\
-                + b * (1-a) * rgb_to_hsv(rgb_colors[1, 0])\
-                + a * b * rgb_to_hsv(rgb_colors[1, 1])
-    return hsv_to_rgb(hsv_color)
+def colors_mix(image, points):
+    quotient, remainder = np.divmod(points, 1)
+    quotient = quotient.astype(int)
+    a = remainder[:,0]
+    b = remainder[:,1]
+    x = quotient[:,0]
+    y = quotient[:,1]
+    return image[x, y]* ((1-a) * (1-b))[:, None]\
+                + image[x, y+1] * (a * (1-b))[:, None]\
+                + image[x+1, y] * (b * (1-a))[:, None]\
+                + image[x+1, y+1] * (a * b)[:, None]
 
 
 def rgb_to_hsv(color):
