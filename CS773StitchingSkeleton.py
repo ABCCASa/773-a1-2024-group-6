@@ -7,6 +7,8 @@ from CornerDetection.fast_corner_detection import fastCornerDetection
 from CornerDetection.harris_corner_detection import harrisCornerDetection
 from FeatureMatch.ncc_match import NCCMatch
 from FeatureMatch.ssda_match import SSDAMatch
+from ImageStitching.fitting import projective_transformation_fitting
+from ImageStitching.warping import warping
 import utils
 
 # this is a helper function that puts together an RGB image for display in matplotlib, given
@@ -77,63 +79,25 @@ def main():
     matched_Point = NCCMatch(left_image, left_corner, right_image, right_corner)
     PoltMatchingImage(left_image, right_image, matched_Point,"NCC Match")
 
+    """
     matched_Point = SSDAMatch(left_image, left_corner, right_image, right_corner)
     PoltMatchingImage(left_image, right_image, matched_Point,"SSDA Match")
     """
-    left_corner = image_corner_detection(left_image, count=1000, alpha=0.04, threshold=100, nms_size=3, debug=True)
-    plot_image_with_point(left_image, left_corner)
 
-    right_corner = image_corner_detection(right_image, count=1000, alpha=0.04, threshold=100, nms_size=3, debug=True)
-    plot_image_with_point(right_image, right_corner)
-    
-    filename_left_image = "./images/panoramaStitching/tongariro_left_01.png"
-    filename_right_image = "./images/panoramaStitching/tongariro_right_01.png"
 
-    (image_width, image_height, px_array_left_original) = IORW.readRGBImageAndConvertToGreyscalePixelArray(filename_left_image)
-    (image_width, image_height, px_array_right_original) = IORW.readRGBImageAndConvertToGreyscalePixelArray(filename_right_image)
+    """ ***********************************  Image Stitching  *************************************************** """
+    left_image = utils.get_rgb_image(filename_left_image)
+    right_image = utils.get_rgb_image(filename_right_image)
 
-    start = timer()
-    px_array_left = IPSmooth.computeGaussianAveraging3x3(px_array_left_original, image_width, image_height)
-    px_array_right = IPSmooth.computeGaussianAveraging3x3(px_array_right_original, image_width, image_height)
-    end = timer()
-    print("elapsed time image smoothing: ", end - start)
+   
+    H, inliers_count = projective_transformation_fitting(matched_Point, distance_threshold=2, iter_count=100000)
+    print(f"get {inliers_count} inliers, which is {int(100*inliers_count/len(matched_Point))}% of all points")
 
-    # make sure greyscale image is stretched to full 8 bit intensity range of 0 to 255
-    px_array_left = IPPixelOps.scaleTo0And255AndQuantize(px_array_left, image_width, image_height)
-    px_array_right = IPPixelOps.scaleTo0And255AndQuantize(px_array_right, image_width, image_height)
 
-    # some simplevisualizations
-    fig1, axs1 = pyplot.subplots(1, 2)
-
-    axs1[0].set_title('Harris response left overlaid on orig image')
-    axs1[1].set_title('Harris response right overlaid on orig image')
-    axs1[0].imshow(px_array_left, cmap='gray')
-    axs1[1].imshow(px_array_right, cmap='gray')
-
-    # plot a red point in the center of each image
-    circle = Circle((image_width/2, image_height/2), 3.5, color='r')
-    axs1[0].add_patch(circle)
-
-    circle = Circle((image_width/2, image_height/2), 3.5, color='r')
-    axs1[1].add_patch(circle)
-
+    final_image = warping(left_image, [(right_image, H)])
+    pyplot.imshow(final_image)
     pyplot.show()
 
-    # a combined image including a red matching line as a connection patch artist (from matplotlib)
-
-    matchingImage = prepareMatchingImage(px_array_left, px_array_right, image_width, image_height)
-
-    pyplot.imshow(matchingImage, cmap='gray')
-    ax = pyplot.gca()
-    ax.set_title("Matching image")
-
-    pointA = (image_width/2, image_height/2)
-    pointB = (3*image_width/2, image_height/2)
-    connection = ConnectionPatch(pointA, pointB, "data", edgecolor='r', linewidth=1)
-    ax.add_artist(connection)
-
-    pyplot.show()
-    """
 
 if __name__ == "__main__":
     main()
