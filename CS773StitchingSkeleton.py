@@ -10,7 +10,7 @@ from FeatureMatch.ssda_match import SSDAMatch
 from ImageStitching.fitting import projective_transformation_fitting
 from ImageStitching.warping import warping
 import utils
-
+import time
 # this is a helper function that puts together an RGB image for display in matplotlib, given
 # three color channels for r, g, and b, respectively
 def prepareRGBImageFromIndividualArrays(r_pixel_array, g_pixel_array, b_pixel_array, image_width, image_height):
@@ -54,50 +54,91 @@ def plot_image_with_point(image, points, title=""):
 
 
 def main():
+    while True:
+        change_mode=input("Please enter 'original' or 'extension' to select pipeline:")
+        if change_mode== "original" or change_mode== "extension":
+            print("Waiting for processing")
+            break
+        else:
+            print("Input Error")
     filename_left_image = "./images/panoramaStitching/tongariro_left_01.png"
     filename_right_image = "./images/panoramaStitching/tongariro_right_01.png"
 
     left_image = utils.get_gray_image(filename_left_image)
     right_image = utils.get_gray_image(filename_right_image)
+    if change_mode == "original":
+        """ ***********************************  Corner Detection  *************************************************** """
+        CD_start_time = time.time()
+        left_corner = harrisCornerDetection(left_image, count=1000,  alpha=0.04, threshold=100, nms_size=3, debug=False)
+        # plot_image_with_point(left_image, left_corner, "Harris Corner Detection: Left Image")
 
-    """ ***********************************  Corner Detection  *************************************************** """
-    left_corner = harrisCornerDetection(left_image, count=1000,  alpha=0.04, threshold=100, nms_size=3, debug=False)
-    # plot_image_with_point(left_image, left_corner, "Harris Corner Detection: Left Image")
+        right_corner = harrisCornerDetection(right_image, count=900, alpha=0.04, threshold=100, nms_size=3, debug=False)
+        # plot_image_with_point(right_image, right_corner, "Harris Corner Detection: Right Image")
+        CD_end_time=time.time()
 
-    right_corner = harrisCornerDetection(right_image, count=900, alpha=0.04, threshold=100, nms_size=3, debug=False)
-    # plot_image_with_point(right_image, right_corner, "Harris Corner Detection: Right Image")
+        print(f"Original Corner Detection Time:{CD_end_time-CD_start_time}")
+        """
+        left_corner_fast_extension = fastCornerDetection(left_image)
+        plot_image_with_point(left_image, left_corner_fast_extension, "FAST Corner Detection: Left Image")
+    
+        right_corner_fast_extension = fastCornerDetection(right_image)
+        plot_image_with_point(right_image, right_corner_fast_extension, "FAST Corner Detection: Right Image")
+        """
 
-    """
-    left_corner_fast_extension = fastCornerDetection(left_image)
-    plot_image_with_point(left_image, left_corner_fast_extension, "FAST Corner Detection: Left Image")
+        """ ***********************************  Feature Match  *************************************************** """
+        FM_start_time = time.time()
+        matched_Point = NCCMatch(left_image, left_corner, right_image, right_corner)
+        FM_end_time = time.time()
+        print(f"Original Feature Match nodes:{len(matched_Point)}")
+        print(f"Original Feature Match Time:{FM_end_time-FM_start_time }")
+        PoltMatchingImage(left_image, right_image, matched_Point,"NCC Match")
 
-    right_corner_fast_extension = fastCornerDetection(right_image)
-    plot_image_with_point(right_image, right_corner_fast_extension, "FAST Corner Detection: Right Image")
-    """
-
-    """ ***********************************  Feature Match  *************************************************** """
-    matched_Point = NCCMatch(left_image, left_corner, right_image, right_corner)
-    PoltMatchingImage(left_image, right_image, matched_Point,"NCC Match")
-
-    """
-    matched_Point = SSDAMatch(left_image, left_corner, right_image, right_corner)
-    PoltMatchingImage(left_image, right_image, matched_Point,"SSDA Match")
-    """
-
-
-    """ ***********************************  Image Stitching  *************************************************** """
-    left_image = utils.get_rgb_image(filename_left_image)
-    right_image = utils.get_rgb_image(filename_right_image)
-
-   
-    H, inliers_count = projective_transformation_fitting(matched_Point, distance_threshold=2, iter_count=100000)
-    print(f"get {inliers_count} inliers, which is {int(100*inliers_count/len(matched_Point))}% of all points")
+        """
+        matched_Point = SSDAMatch(left_image, left_corner, right_image, right_corner)
+        PoltMatchingImage(left_image, right_image, matched_Point,"SSDA Match")
+        """
 
 
-    final_image = warping(left_image, [(right_image, H)])
-    pyplot.imshow(final_image)
-    pyplot.show()
+        """ ***********************************  Image Stitching  *************************************************** """
+        left_image = utils.get_rgb_image(filename_left_image)
+        right_image = utils.get_rgb_image(filename_right_image)
 
+
+        H, inliers_count = projective_transformation_fitting(matched_Point, distance_threshold=2, iter_count=100000)
+        print(f"get {inliers_count} inliers, which is {int(100*inliers_count/len(matched_Point))}% of all points")
+
+
+        final_image = warping(left_image, [(right_image, H)])
+        end_time=time.time()
+        print(f"Original total time{end_time - CD_start_time}")
+        pyplot.imshow(final_image)
+        pyplot.show()
+    else:
+        CD_start_time = time.time()
+        left_corner_fast_extension = fastCornerDetection(left_image)
+        right_corner_fast_extension = fastCornerDetection(right_image)
+        CD_end_time=time.time()
+        print(f"Extension Corner Detection Time:{CD_end_time - CD_start_time}")
+
+        FM_start_time = time.time()
+        matched_Point = SSDAMatch(left_image, left_corner_fast_extension, right_image, right_corner_fast_extension)
+        FM_end_time = time.time()
+        PoltMatchingImage(left_image, right_image, matched_Point, "SSDA Match")
+        print(f"Extension Feature Match nodes:{len(matched_Point)}")
+        print(f"Extension Feature Match Time:{FM_end_time - FM_start_time }")
+
+        left_image = utils.get_rgb_image(filename_left_image)
+        right_image = utils.get_rgb_image(filename_right_image)
+
+        H, inliers_count = projective_transformation_fitting(matched_Point, distance_threshold=2, iter_count=100000)
+        print(f"get {inliers_count} inliers, which is {int(100 * inliers_count / len(matched_Point))}% of all points")
+
+        final_image = warping(left_image, [(right_image, H)])
+        end_time=time.time()
+        print(f"Extension total time{end_time - CD_start_time}")
+
+        pyplot.imshow(final_image)
+        pyplot.show()
 
 if __name__ == "__main__":
     main()
