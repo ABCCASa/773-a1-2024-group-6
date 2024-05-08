@@ -6,7 +6,7 @@ import utils
 from matplotlib import pyplot
 from matplotlib.patches import Circle, ConnectionPatch
 import A2_utilities
-
+import line_select_window
 def plot_image_with_point(image, points, title=""):
     fig, ax = pyplot.subplots()
     ax.set_title(title)
@@ -19,12 +19,28 @@ def plot_image_with_point(image, points, title=""):
 
 def RANSAC(corners, img):
     img_shape = img.shape
-    center = img_shape/2
+    if len(img_shape) == 3:
+        img_size = np.array([img_shape[1], img_shape[2]])
+    else:
+        img_size = np.array([img_shape[0], img_shape[1]])
+
+    center = img_size/2
     np_corners = []
     # convert (x, y) to (row, column)
     for c, r in corners:
         np_corners.append([r, c])
     distorted_corners = np.array(np_corners)
+    undistorted_corners = apply_kappa(distorted_corners, center, 0.0000001)
+
+
+    # corner post process
+    undistorted_corners = undistorted_corners.tolist()
+    for i in range(len(undistorted_corners)):
+        undistorted_corners[i][0], undistorted_corners[i][1] = undistorted_corners[i][1], undistorted_corners[i][0]
+
+
+    return undistorted_corners
+
 
 
 
@@ -50,10 +66,11 @@ def main():
 
     # 1. Import your own Harris corner detection to find all the corners in the chessboard. You will mark down if you use opencv "findChessboardCorners."
     img_gray = utils.get_gray_image(imgPath, blur=True, scale_color=True)
-    corners = harrisCornerDetection(img_gray, count=500, window_size=5, alpha=0.06, threshold=500, nms_size=11)
-    plot_image_with_point(img_gray, corners)
+    corners = harrisCornerDetection(img_gray, count=500, window_size=5, alpha=0.06, threshold=500, nms_size=13)
 
     # 2. You need to find a way to group the detected corner coordinates on horizontal lines in the chessboard image
+    corner_groups = line_select_window.select_line(img_gray, corners)
+    print(corner_groups)
     
     # 3. Define the RANSAC line-fitting algorithm to get the best slope and intercept of each horizontal line of points
     
