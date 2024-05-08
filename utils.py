@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 
+
 def scaleImageTo0And255(image):
     min_v = np.min(image)
     max_v = np.max(image)
@@ -11,13 +12,19 @@ def scaleImageTo0And255(image):
 
 def get_rgb_image(file_name):
     image = cv2.imread(file_name)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    if image.shape[0] == 4:
+        image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
+    else:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     return image
 
 
 def get_gray_image(file_name, blur=True, scale_color=True):
     image = cv2.imread(file_name)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    if image.shape[0] == 4:
+        image = cv2.cvtColor(image, cv2.COLOR_BGRA2GRAY)
+    else:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Initial blurring of input images
     if blur:
