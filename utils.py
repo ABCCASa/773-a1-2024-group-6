@@ -28,7 +28,7 @@ def get_gray_image(file_name, blur=True, scale_color=True):
 
     # Initial blurring of input images
     if blur:
-        image = gaussian_filter(image, 3)
+        image = gaussian_filter(image, 5)
 
     # make sure greyscale image is stretched to range of 0 to 255
     if scale_color:
