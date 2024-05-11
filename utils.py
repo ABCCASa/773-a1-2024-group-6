@@ -34,7 +34,7 @@ def get_gray_image(file_name, blur=True, scale_color=True):
     if scale_color:
         image = scaleImageTo0And255(image)
 
-    return image
+    return image.astype(np.uint8)
 
 
 # Faster convolution calculations
@@ -53,11 +53,11 @@ def sobel_filter(image, axis):
     if axis == 'x':
         kernel = np.array([[-1, 0, 1],
                            [-2, 0, 2],
-                           [-1, 0, 1]])
+                           [-1, 0, 1]], dtype=float)
     elif axis == 'y':
         kernel = np.array([[-1, -2, -1],
                            [0, 0, 0],
-                           [1, 2, 1]])
+                           [1, 2, 1]], dtype=float)
     return convolution_2d(image, kernel)/8
 
 
