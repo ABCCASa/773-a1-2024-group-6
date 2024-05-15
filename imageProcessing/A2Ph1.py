@@ -11,17 +11,20 @@ import line_select_window
 from plot_image import plot_image_with_lines, plot_image_with_point, plot_image_with_point_group
 
 
-def apply_kappa(corners, center, k1):
+def apply_kappa(corners, center, k1, k2=None):
     delta = corners - center
     distance = 1 + np.sum(delta ** 2, axis=1) * k1
+    if k2 is not None:
+        distance += np.sum(delta ** 4, axis=1) * k2
     return delta * distance[:, None] + center
+
 
 
 def main():
     # PHASE-2-ASSIGNMENT-1: distortion removal
     # Given a chessboard image, you need to undistort the image by the assumption that straight lines in the real world are expected to be straight in the undistorted image.
     # The first step is to estimate kappa (k1) using an iterative algorithm based on RANSAC line fitting.
-    # Refer to the lecture and tutorial notes for more details. 
+    # Refer to the lecture and tutorial notes for more details.
     # Once k1 is estimated you can use "NearestNeighbourInterpolation" function to undistort the original image
     # The provided function "NearestNeighbourInterpolation" needs the distorted image and the estimated kappa as inputs, and it returns the undistorted image.
 
@@ -124,36 +127,30 @@ def main():
     def RANSAC(corners, iters=None):
         count = corners.shape[0]
         max_inlier = -1
-        if iters is None or (count + 1) * count / 2 < iters:
-            best_ab = []
-            for j in range(count):
-                for k in range(j + 1, count):
-                    current_a, current_b, current_inlier, current_error = get_inlier(corners, [j, k])
-                    if current_inlier > max_inlier:
-                        best_ab.clear()
-                        best_ab.append((current_a, current_b, current_error))
-                        max_inlier = current_inlier
-                    elif current_inlier == max_inlier:
-                        best_ab.append((current_a, current_b, current_error))
-            return random.choice(best_ab)
-        else:
-            a, b, error = None, None
-            for _ in range(iters):
-                idxes = random.sample(range(count), 2)
-                current_a, current_b, current_inlier, current_error = get_inlier(corners, idxes)
-                if current_inlier > max_inlier:
-                    a, b, max_inlier, error = current_a, current_b, current_inlier
-            return a, b, error
+
+        best_a, best_b, min_error= None, None, 1e20
+        for j in range(count):
+            for k in range(j + 1, count):
+                current_a, current_b, current_inlier, current_error = get_inlier(corners, [j, k])
+                if current_inlier > max_inlier or current_error < min_error:
+                    best_a, best_b, min_error = current_a, current_b, current_error
+                    max_inlier = current_inlier
+                elif current_inlier == max_inlier and current_error < min_error:
+                    best_a, best_b, min_error = current_a, current_b, current_error
+                    max_inlier = current_inlier
+        return best_a, best_b, min_error
+
 
 
     # 4. Define a function to compute the average error for the fitted lines
-    def MeanSquareError(corner_groups, img_center, k1):
+    def MeanSquareError(corner_groups, img_center, k1, k2 = None):
         error_sum = 0
         count = 0
         result = list()
         ud_groups = []
         for d_corners in corner_groups:
-            ud_corners = apply_kappa(d_corners, img_center, k1)
+
+            ud_corners = apply_kappa(d_corners, img_center, k1, k2)
             ud_groups.append(ud_corners)
             a, b, error = RANSAC(ud_corners, 100)
             result.append((a, b))
@@ -226,10 +223,39 @@ def main():
             outer_iter_count -= 1
         return best_k1, best_mse, best_linear
 
+    def default_iter_k2(corner_data, img_center, k1, k2_range, outer_iter_count, inner_iter_count, previous_mse, previoous_linear):
+        min_k2, max_k2 = k2_range[0], k2_range[1]
+        best_k2 = 0
+        best_mse, best_linear = previous_mse, previoous_linear
+        print(best_mse)
+        search_length = k2_range[1] - k2_range[0]
+        while outer_iter_count > 0:
+            is_improve = False
+            for i in range(0, inner_iter_count + 1):
+                next_k2 = min_k2 + (max_k2 - min_k2) * (i / inner_iter_count)
+                next_mse, next_linear = MeanSquareError(corner_data, img_center, k1, next_k2)
+                if next_mse < best_mse:
+                    is_improve = True
+                    best_mse = next_mse
+                    best_linear = next_linear
+                    best_k2 = next_k2
+                    print(f"[result improve] k2:{best_k2}, mse: {best_mse}")
+            if is_improve:
+                search_length *= 0.5
+            else:
+                search_length *= 0.25
+            min_k2 = max(best_k2 - search_length / 2, k2_range[0])
+            max_k2 = min(best_k2 + search_length / 2, k2_range[1])
+            outer_iter_count -= 1
+        return best_k2, best_mse, best_linear
+
     img_shape = img_gray.shape
     img_center = np.array([img_shape[1], img_shape[0]]) / 2  # (width, height)
-    best_k1, min_error, linear_result = default_iter(corner_groups, img_center, (0, 1e-6), 40, 400)
-    print(f"Find the best kappa {best_k1}, mean square error: {min_error}")
+    best_k1, min_error, linear_result = default_iter(corner_groups, img_center, (0, 1e-6), 20, 200)
+    print(f"Find the best k1: {best_k1}, mean square error: {min_error}")
+
+    best_k2, min_error, linear_result = default_iter_k2(corner_groups, img_center, best_k1, (-1e-13, 1e-13), 20, 200, min_error, linear_result)
+    print(f"Find the best k2 {best_k2}, mean square error: {min_error}")
 
     # best_k1, min_error, linear_result = simulated_annealing(corner_groups, img_center, (0, 1e-6), step=1e-7)
     # print(f"Find the best kappa {best_k1}, mean square error: {min_error}")
@@ -240,7 +266,7 @@ def main():
     # 6. After estimating kappa, use "NearestNeighbourInterpolation" to undistort the original distorted image.
 
     undistorted_points_group = [apply_kappa(np.array(p), img_center, best_k1) for p in corner_groups]
-    undistorted_img = A2_utilities.NearestNeighbourInterpolation(img_rgb, best_k1)
+    undistorted_img = A2_utilities.NearestNeighbourInterpolation(img_rgb, best_k1, best_k2)
     plot_image_with_point_group(undistorted_img, corner_groups, undistorted_points_group, linear_result, "Final Result")
 
     # PLEASE DEFINE ALL YOUR FUNCTION IN UTILITIES AND IMPORT THEM HERE.
