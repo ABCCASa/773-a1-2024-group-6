@@ -6,7 +6,6 @@ import numpy as np
 from A2_P1.A2Ph1 import undistort_img
 
 # PLEASE DEFINE ALL YOUR FUNCTIONS IN UTILITIES AND IMPORT THEM HERE
-
 def get_coords(file_name):
     uvs = []
     world_points = []
@@ -19,7 +18,7 @@ def get_coords(file_name):
 
 def uv_to_image_space_points(uv, img_center, delta, sx=1):
     camera_space_points = np.zeros_like(uv)
-    camera_space_points[:, 0] = (uv[:, 0]-img_center[0])*delta*sx
+    camera_space_points[:, 0] = (uv[:, 0]-img_center[0])*delta/sx
     camera_space_points[:, 1] = (img_center[1]-uv[:, 1])*delta
     return camera_space_points
 
@@ -74,26 +73,26 @@ def world_to_pixel(world_points, image_space_to_pixel_space, camera_space_to_ima
     return uv
 
 
-def backproject(uvs, img_center, f, dx, sx,  RT, axis = 0):
-    RT_inv = np.linalg.inv(RT)
-    Owc = (RT_inv @ np.array([[0], [0], [0], [1]]))[:3].reshape(-1)
-
-    uvs = uv_to_image_space_points(uvs, img_center, dx, sx)
-
-    uvs = np.concatenate([uvs.T.flat,
-                          f*np.ones((uvs.shape[0])),
-                          np.ones((uvs.shape[0]))
-                          ]).reshape(4, -1)
-
+def uv_to_ray(uv, image_space_to_pixel_space, camera_space_to_image_space, world_to_camera_space_matrix, **kwargs):
+    RT_inv = np.linalg.inv(world_to_camera_space_matrix)
+    Owc = (RT_inv @ np.array([0, 0, 0, 1]).T)[:3].reshape(-1)
+    camera_space_point = np.linalg.inv(image_space_to_pixel_space) @ np.concatenate([uv.T,
+                          np.ones((1, uv.shape[0]))
+                          ])
+    uvs = np.concatenate([camera_space_point[:2],
+                          camera_space_to_image_space[0, 0]*np.ones((1, uv.shape[0])),
+                          np.ones((1, uv.shape[0]))
+                          ])
     Mwi = np.dot(RT_inv, uvs).T[:, :3]
+    return Owc, Mwi
+
+
+def backproject(uv, image_space_to_pixel_space, camera_space_to_image_space, world_to_camera_space_matrix, axis):
+    Owc, Mwi = uv_to_ray(uv, image_space_to_pixel_space, camera_space_to_image_space, world_to_camera_space_matrix)
     t = -Owc[axis]/(Mwi[:, axis]-Owc[axis])
     point_3d = (Mwi-Owc)*t[:, None] + Owc
-    return  point_3d
+    return point_3d
 
-
-
-def RMSE(point1, point2):
-    return np.sqrt(np.mean((point1-point2)**2))
 
 
 def get_corner_and_image(img):
@@ -112,8 +111,6 @@ def Tsai_Calibration(img, pixel_size, need_undistort=True, debug=False):
     if need_undistort:
         datas = undistort_img(img, uv.reshape(14, 10, 2), debug)
         img, uv = datas["img"], datas["points"]
-    if debug:
-        plot_3d(world_space_points)
 
     img_size = img.shape[:2]
     img_center = (img_size[1]/2, img_size[0]/2)
@@ -167,22 +164,10 @@ def Tsai_Calibration(img, pixel_size, need_undistort=True, debug=False):
     if debug:
         print(f"world_space_to_pixel_space\n{world_space_to_pixel_space}\n")
 
-    uv_new = world_to_pixel(world_space_points, image_space_to_pixel_space, camera_space_to_image_space, world_to_camera_space_matrix)
-
-    if debug:
-        print("The RMSE for 3d->2d is", RMSE(uv, uv_new))
-        plot_image_with_point(img, uv, uv_new, title="Projection from 3D coordinates to 2D pixels")
-
-    backproject_3d_point_left = backproject(uv[: uv.shape[0]//2], img_center, f, pixel_size, sx, world_to_camera_space_matrix, 0)
-    backproject_3d_point_right = backproject(uv[uv.shape[0]//2:], img_center, f, pixel_size, sx, world_to_camera_space_matrix, 1)
-    backproject_3d_point = np.concatenate((backproject_3d_point_left, backproject_3d_point_right)).reshape(-1, 3)
-
-    if debug:
-        print("The RMSE for 2d->3d is", RMSE(uv, uv_new))
-        plot_3d(world_space_points, backproject_3d_point, title="Projection from 2D coordinates to 3D pixels")
-
     return {
         "img": img,
+        "uv": uv,
+        'world_space_points': world_space_points,
         "image_space_to_pixel_space": image_space_to_pixel_space,
         "camera_space_to_image_space": camera_space_to_image_space,
         "world_to_camera_space_matrix": world_to_camera_space_matrix,
@@ -191,9 +176,69 @@ def Tsai_Calibration(img, pixel_size, need_undistort=True, debug=False):
         "sx": sx
     }
 
+
+# Test Error Part
+def RMSE(point1, point2):
+    return np.sqrt(np.mean((point1-point2)**2))
+
+
+def test_2d_error(img, uv, world_space_points, image_space_to_pixel_space, camera_space_to_image_space, world_to_camera_space_matrix, **kwargs):
+    uv_new = world_to_pixel(world_space_points, image_space_to_pixel_space, camera_space_to_image_space, world_to_camera_space_matrix)
+    error = RMSE(uv, uv_new)
+    print("The RMSE for 3d->2d is", error)
+    plot_image_with_point(img, uv, uv_new, title=f"Projection from 3D coordinates to 2D pixels, MSE={error}")
+
+
+def test_single_3d_error(uv, world_space_points, image_space_to_pixel_space, camera_space_to_image_space, world_to_camera_space_matrix, **kwargs):
+    backproject_3d_point_left = backproject(uv[: uv.shape[0] // 2], image_space_to_pixel_space, camera_space_to_image_space,
+                                            world_to_camera_space_matrix, 0)
+    backproject_3d_point_right = backproject(uv[uv.shape[0] // 2:], image_space_to_pixel_space, camera_space_to_image_space,
+                                             world_to_camera_space_matrix, 1)
+    backproject_3d_point = np.concatenate((backproject_3d_point_left, backproject_3d_point_right)).reshape(-1, 3)
+    error = RMSE(world_space_points, backproject_3d_point)
+    print("The RMSE for 2d->3d is", error)
+    plot_3d(world_space_points, backproject_3d_point, title=f"Projection from 2D coordinates to 3D pixels, MSE={error}")
+
+def intersection(p1, p2, p3, p4):
+    d21 = p2 - p1
+    d34 = p3 - p4
+    d13 = p1 - p3
+
+    a = np.array([
+            [d21.T@d21, d21.T@d34],
+            [d21.T@d34, d34.T@d34]
+        ])
+    b = np.array([-d13.T@d21, -d13.T@d34]).T
+    t = np.linalg.inv(a)@b
+
+    return ((p1 + t[0]*(p2-p1)) + (p3+t[1]*(p4-p3)))/2
+
+
+def stereo_calibration_error(data1, data2, world_point):
+    Owc1, Mwi1 = uv_to_ray(**data1)
+    Owc2, Mwi2 = uv_to_ray(**data2)
+
+    inter_point = []
+    for i in range(len(Mwi1)):
+        inter_point.append(intersection(Owc1, Mwi1[i], Owc2, Mwi2[i]))
+
+    inter_point = np.array(inter_point)
+    error = RMSE(inter_point, world_point)
+    plot_3d(world_point, inter_point, title=f"Stereo Calibration, MSE={error}")
+
+
+
 def main():
-    img = utils.get_rgb_image("H3/Left/H3_Cube_Left.png")
-    Tsai_Calibration(img=img, pixel_size=0.000155, need_undistort=True, debug=True)
+    h3_l_img = utils.get_rgb_image("H3/Left/H3_Cube_Left.png")
+    h3_l_data = Tsai_Calibration(img=h3_l_img, pixel_size=0.000155, need_undistort=True, debug=True)
+    test_2d_error(**h3_l_data)
+    test_single_3d_error(**h3_l_data)
+
+    h3_r_img = utils.get_rgb_image("H3/Right/H3_Cube_Right.png")
+    h3_r_data = Tsai_Calibration(img=h3_r_img, pixel_size=0.000155, need_undistort=True, debug=False)
+
+    stereo_calibration_error(h3_l_data, h3_r_data, h3_l_data["world_space_points"])
+
 
 
 if __name__ == "__main__":
