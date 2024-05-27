@@ -1,8 +1,6 @@
 import numpy as np
 from matplotlib import pyplot
 from matplotlib.patches import Circle, ConnectionPatch
-from timeit import default_timer as timer
-import imageProcessing.utilities as IPUtils
 from CornerDetection.fast_corner_detection import fastCornerDetection
 from CornerDetection.harris_corner_detection import harrisCornerDetection
 from FeatureMatch.ncc_match import NCCMatch
