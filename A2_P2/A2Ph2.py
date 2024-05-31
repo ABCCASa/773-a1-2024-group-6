@@ -1,7 +1,7 @@
-from Get3d2dCoordinates import *
+from A2_P2.Get3d2dCoordinates import *
 import pandas as pd
 import utils
-from img_polt import plot_image_with_point, plot_3d
+from A2_P2.img_polt import plot_image_with_point, plot_3d
 import numpy as np
 from A2_P1.A2Ph1 import undistort_img
 
@@ -106,11 +106,14 @@ def get_corner_and_image(img):
     return np.array(uv), np.array(world_space_points)
 
 
-def Tsai_Calibration(img, pixel_size, need_undistort=True, debug=False):
+def Tsai_Calibration(img, pixel_size, need_undistort=True, debug=False, generate_img=True):
     uv, world_space_points = get_corner_and_image(np.copy(img))
     if need_undistort:
-        datas = undistort_img(img, uv.reshape(14, 10, 2), debug)
-        img, uv = datas["img"], datas["points"]
+        datas = undistort_img(img, uv.reshape(14, 10, 2), debug, generate_img)
+        uv = datas["points"]
+        img = datas["img"]
+    else:
+        datas = dict()
 
     img_size = img.shape[:2]
     img_center = (img_size[1]/2, img_size[0]/2)
@@ -164,8 +167,7 @@ def Tsai_Calibration(img, pixel_size, need_undistort=True, debug=False):
     if debug:
         print(f"world_space_to_pixel_space\n{world_space_to_pixel_space}\n")
 
-    return {
-        "img": img,
+    datas.update({
         "uv": uv,
         'world_space_points': world_space_points,
         "image_space_to_pixel_space": image_space_to_pixel_space,
@@ -174,7 +176,8 @@ def Tsai_Calibration(img, pixel_size, need_undistort=True, debug=False):
         "world_space_to_pixel_space": world_space_to_pixel_space,
         "f": f,
         "sx": sx
-    }
+    })
+    return datas
 
 
 # Test Error Part
@@ -235,7 +238,7 @@ def main():
     test_single_3d_error(**h3_l_data)
 
     h3_r_img = utils.get_rgb_image("H3/Right/H3_Cube_Right.png")
-    h3_r_data = Tsai_Calibration(img=h3_r_img, pixel_size=0.000155, need_undistort=True, debug=False)
+    h3_r_data = Tsai_Calibration(img=h3_r_img, pixel_size=0.000155, need_undistort=True, debug=True, generate_img=False)
 
     stereo_calibration_error(h3_l_data, h3_r_data, h3_l_data["world_space_points"])
 
