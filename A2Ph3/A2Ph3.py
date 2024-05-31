@@ -32,12 +32,12 @@ def main():
     right_obj_img = image_preprocessing(data2, right_obj_img)
 
     print("2/2")
-    img_polt.plot_two_img(left_obj_img, right_obj_img, with_line=True,title="Reprocessed Image")
+    img_polt.plot_two_img(left_obj_img, right_obj_img, with_line=True, title="Reprocessed Image")
 
     left_obj_img = cv2.cvtColor(left_obj_img, cv2.COLOR_RGB2GRAY)
     right_obj_img = cv2.cvtColor(right_obj_img, cv2.COLOR_RGB2GRAY)
     print("start stereo match...")
-    stereo_match(left_obj_img, right_obj_img, disparity_max=32, score='ncc', window_size=21)
+    stereo_match(left_obj_img, right_obj_img, disparity_max=64, score='ncc', window_size=25, resample=0.1)
 
 
 if __name__ == "__main__":
