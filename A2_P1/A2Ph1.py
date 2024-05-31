@@ -117,7 +117,7 @@ def default_iter_k2(corner_data, img_center, k1, k2_range, outer_iter_count, inn
     return best_k2, best_mse, best_linear
 
 
-def undistort_img(img, corner_groups, debug=False):
+def undistort_img(img, corner_groups, debug=False, output_img=True):
     if debug:
         plot_image_with_lines(img, corner_groups)
 
@@ -132,16 +132,19 @@ def undistort_img(img, corner_groups, debug=False):
         print(f"Find the best k2 {best_k2}, mean square error: {min_error}")
 
     undistorted_points_group = np.array([apply_kappa(np.array(p), img_center, best_k1) for p in corner_groups])
-    if debug:
-        print("Generate undistorted image, This may takes some time")
-    undistorted_img = A2_utilities.NearestNeighbourInterpolation(img, best_k1, best_k2)
-    if debug:
-        plot_image_with_point_group(undistorted_img, corner_groups, undistorted_points_group, linear_result, "Final Result")
+
+    if output_img:
+        if debug:
+            print("Generate undistorted image, This may takes some time")
+        img = A2_utilities.NearestNeighbourInterpolation(img, best_k1, best_k2)
+        if debug:
+            plot_image_with_point_group(img, corner_groups, undistorted_points_group, linear_result, "Final Result")
+
     return {
-        "img": undistorted_img,
         "points": undistorted_points_group.reshape(-1, 2),
         "k1": best_k1,
-        "k2": best_k2
+        "k2": best_k2,
+        'img': img
     }
 
 
