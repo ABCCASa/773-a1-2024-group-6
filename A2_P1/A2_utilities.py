@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-
+import A2_P1.plot_image
 def NearestNeighbourInterpolation(img,k1, k2):
 
     def undistPixel(xd,yd,k1, k2):
