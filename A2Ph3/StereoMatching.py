@@ -45,7 +45,7 @@ def ssd_stereo_match(img1, img2, disparity_min=1, disparity_max=32, size=7):
     return disp_map
 
 
-def ncc_stereo_match(img1, img2,disparity_min=1, disparity_max=32, size=31):
+def ncc_stereo_match(img1, img2,disparity_min=1, disparity_max=32, size=31, smooth=None):
     img1 = img1.astype(float)
     img2 = img2.astype(float)
     pixel_count = size**2
@@ -72,17 +72,28 @@ def ncc_stereo_match(img1, img2,disparity_min=1, disparity_max=32, size=31):
 
     layers = np.array(layers)
 
-    disp_map = np.argmax(layers, axis=0)+disparity_min
+    if smooth is None:
+        disp_map = np.argmax(layers, axis=0)
+    else:
+        disp_map = np.zeros(img1.shape)
+        last_max_arg = np.argmax(layers[:, :, 0], axis=0)
+        disp_map[:, 0] = last_max_arg
+        for i in range(1, img1.shape[1]):
+            layers[last_max_arg, np.arange(img1.shape[0]), i] += smooth
+            last_max_arg = np.argmax(layers[:, :, i], axis=0)
+            disp_map[:, i] = last_max_arg
+
+    disp_map += disparity_min
 
 
-    pyplot.imshow(disp_map)
+    pyplot.imshow(disp_map, cmap= "jet")
     pyplot.show()
 
     return disp_map
 
 
 
-def stereo_match(img1, img2,disparity_min=1, disparity_max=32, window_size=31, score="ncc", resample = None):
+def stereo_match(img1, img2,disparity_min=1, disparity_max=32, window_size=31, score="ncc", smooth=None,resample = None):
     if img1.shape != img2.shape:
         raise ValueError("two image with different size")
 
@@ -99,7 +110,7 @@ def stereo_match(img1, img2,disparity_min=1, disparity_max=32, window_size=31, s
 
 
     if score == "ncc":
-        ncc_stereo_match(img1, img2, disparity_min, disparity_max, window_size)
+        ncc_stereo_match(img1, img2, disparity_min, disparity_max, window_size,smooth)
     elif score == "sad":
         sad_stereo_match(img1, img2, disparity_min, disparity_max, window_size)
     elif score == "ssd":
@@ -108,9 +119,11 @@ def stereo_match(img1, img2,disparity_min=1, disparity_max=32, window_size=31, s
         raise ValueError("score can only be 'ncc', 'sad', 'ssd'")
 
 def main():
-    left_obj_img = utils.get_gray_image("own images/Bowling2/view0.png")
-    right_obj_img = utils.get_gray_image("own images/Bowling2/view1.png")
-    stereo_match(left_obj_img, right_obj_img, disparity_max=32, score='ncc', window_size=11)
+    left_obj_img = utils.get_gray_image("own images/Rocks2/view0.png")
+    right_obj_img = utils.get_gray_image("own images/Rocks2/view1.png")
+
+
+    stereo_match(left_obj_img, right_obj_img, disparity_max=20, score='ncc', window_size=41)
 
 
 
